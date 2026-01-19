@@ -1,0 +1,351 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="initial-scale=1,width=device-width" />
+    <title>WebGIS Persebaran Pharmacy</title>
+
+    <!-- Leaflet -->
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <style>
+      html,
+      body,
+      #map {
+        height: 100%;
+        margin: 0;
+      }
+
+      /* HEADER */
+      #header {
+        position: absolute;
+        top: 15px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: #1e3a8a;
+        color: white;
+        padding: 14px 40px;
+        border-radius: 10px;
+        z-index: 1000;
+        text-align: center;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+      }
+      #header h2 {
+        margin: 0;
+      }
+      #header p {
+        margin: 4px 0 0;
+        font-size: 14px;
+      }
+      /* PANEL */
+      .panel {
+        position: absolute;
+        background: white;
+        padding: 12px;
+        border-radius: 10px;
+        box-shadow: 0 3px 8px rgba(0, 0, 0, 0.3);
+        font-size: 13px;
+        z-index: 1000;
+      }
+
+      #legend {
+        bottom: 30px;
+        left: 20px;
+        width: 210px;
+      }
+      #desc {
+        bottom: 30px;
+        right: 20px;
+        width: 260px;
+      }
+
+      .legend-item {
+        cursor: pointer;
+        margin: 5px 0;
+      }
+
+      .legend-item:hover {
+        font-weight: bold;
+      }
+
+      .color {
+        width: 14px;
+        height: 14px;
+        display: inline-block;
+        margin-right: 6px;
+      }
+
+      .jogja {
+        background: #191970;
+      }
+      .sleman {
+        background: #1e88e5;
+      }
+      .bantul {
+        background: #d2b48c;
+      }
+      .kulon {
+        background: #483d8b;
+      }
+      .gunung {
+        background: #a52a2a;
+      }
+      .legend-item {
+        cursor: pointer;
+        padding: 4px;
+        border-radius: 4px;
+      }
+      .legend-item:hover {
+        background: #f0f0f0;
+      }
+      /* NORTH ARROW (tanpa background) */
+      #north {
+        position: absolute;
+        top: 30px;
+        left: 50px;
+        width: 80px;
+        z-index: 1000;
+        pointer-events: none;
+
+        /* MEMPERTEGAS WARNA */
+        filter: drop-shadow(0 0 2px rgb(111, 20, 25)) contrast(130%)
+          saturate(140%);
+      }
+      #maps {
+        position: absolute;
+        top: 450px;
+        left: 270px;
+        width: 100px;
+        z-index: 1000;
+        pointer-events: none;
+      }
+    </style>
+  </head>
+
+  <body>
+    <!-- HEADER -->
+    <div id="header">
+      <h2>Persebaran Pharmacy (Apotek)</h2>
+      <small>Daerah Istimewa Yogyakarta</small>
+    </div>
+
+    <!-- LEGENDA INTERAKTIF -->
+    <div class="panel" id="legend">
+      <b>Legenda Wilayah</b><br />
+      <div class="legend-item" onclick="zoomWilayah('Kota Yogyakarta')">
+        <span class="color jogja"></span>Kota Yogyakarta
+      </div>
+      <div class="legend-item" onclick="zoomWilayah('Sleman')">
+        <span class="color sleman"></span>Sleman
+      </div>
+      <div class="legend-item" onclick="zoomWilayah('Bantul')">
+        <span class="color bantul"></span>Bantul
+      </div>
+      <div class="legend-item" onclick="zoomWilayah('Kulon Progo')">
+        <span class="color kulon"></span>Kulon Progo
+      </div>
+      <div class="legend-item" onclick="zoomWilayah('Gunungkidul')">
+        <span class="color gunung"></span>Gunungkidul
+      </div>
+      <hr />
+      <div class="legend-item" onclick="showAllPharmacy()">
+        💊 Pharmacy / Apotek
+      </div>
+      <hr />
+      <div class="legend-item" onclick="resetView()">🔄 Reset Tampilan</div>
+    </div>
+
+    <!-- DESKRIPSI -->
+    <div class="panel" id="desc">
+      <b>Deskripsi</b><br />
+      Peta interaktif persebaran 25 fasilitas Pharmacy (Apotek) di Daerah
+      Istimewa Yogyakarta. Klik legenda untuk navigasi wilayah atau menampilkan
+      seluruh apotek.
+    </div>
+
+    <!-- NORTH ARROW -->
+    <img src="assets/icon/north.png" id="north" alt="North Arrow" />
+
+    <!-- MAPSMINI-->
+    <img src="assets/icon/treasure-map.png" id="maps" alt="mapsmini" />
+
+    <!-- MAP -->
+    <div id="map"></div>
+
+    <script>
+      /* MAP */
+      var initialCenter = [-7.9, 110.45];
+      var initialZoom = 10;
+
+      var map = L.map("map").setView(initialCenter, initialZoom);
+
+      /* BASEMAP */
+      var basemap0 = L.tileLayer(
+        "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+        {
+          maxZoom: 19,
+          attribution: "© Esri | Nama: Afriatin – NIM: 24611039",
+        },
+      );
+      basemap0.addTo(map);
+
+      var Esri_WorldImagery = L.tileLayer(
+        "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+        {
+          attribution: "© Esri | Nama: Afriatin – NIM: 24611039",
+        },
+      );
+
+      var MtbMap = L.tileLayer(
+        "http://tile.mtbmap.cz/mtbmap_tiles/{z}/{x}/{y}.png",
+        {
+          attribution: "© Esri | Nama: Afriatin – NIM: 24611039",
+        },
+      );
+
+      var Stadia_StamenWatercolor = L.tileLayer(
+        "https://tiles.stadiamaps.com/tiles/stamen_watercolor/{z}/{x}/{y}.{ext}",
+        {
+          minZoom: 1,
+          maxZoom: 16,
+          attribution: "© Esri | Nama: Afriatin – NIM: 24611039",
+        },
+      );
+
+      // basemap0.addTo(map); //Calls the basemap to be displayed when the page is loaded
+      /*Control Layer*/
+      var baseMaps = {
+        "Open Street Map": basemap0,
+        "Open MTB MAP": MtbMap,
+        "Esri WorldImagery": Esri_WorldImagery,
+        Stadia_Stamen: Stadia_StamenWatercolor,
+      };
+
+      var Layers = {};
+      var layerControl = L.control.layers(baseMaps, Layers, {
+        collapsed: false,
+      });
+      layerControl.addTo(map);
+
+      /* SCALE */
+      L.control.scale({ metric: true, imperial: false }).addTo(map);
+
+      /* ICON */
+      var pharmacyIcon = L.icon({
+        iconUrl: "assets/icon/drugstore.png",
+        iconSize: [32, 32],
+        iconAnchor: [16, 32],
+        popupAnchor: [0, -28],
+      });
+
+      /* PHARMACY LAYER */
+      var pharmacyLayer = L.layerGroup().addTo(map);
+
+      /* DATA */
+      var locations = [
+        { name: "Apotek Aulia", lat: -7.91424, lng: 110.54542 },
+        { name: "Apotek Syifa", lat: -7.91288, lng: 110.6031 },
+        { name: "Pharmacies K-24", lat: -7.93736, lng: 110.59761 },
+        { name: "Apotek Bangun Farma", lat: -7.94688, lng: 110.70885 },
+        { name: "Apotek Jagad Farma", lat: -8.0176, lng: 110.64018 },
+        { name: "Apotek Beji Farma", lat: -7.88072, lng: 110.30227 },
+        { name: "Apotek Bantul 1", lat: -7.83038, lng: 110.3112 },
+        { name: "Apotek Patalan", lat: -7.90929, lng: 110.35239 },
+        { name: "Apotek Mitra Farma", lat: -7.89296, lng: 110.31326 },
+        { name: "Apotek Karuna", lat: -7.8848, lng: 110.35033 },
+        { name: "Apotek Prima Farma", lat: -7.86852, lng: 110.10914 },
+        { name: "Apotek Kranggan Farma", lat: -7.93857, lng: 110.21625 },
+        { name: "Apotek Safira Farma", lat: -7.85492, lng: 110.23823 },
+        { name: "Apotek Jaya Farma", lat: -7.69028, lng: 110.22037 },
+        { name: "Pharmacy Tri Farma", lat: -7.83451, lng: 110.16132 },
+        { name: "Merapi Pharm", lat: -7.78081, lng: 110.36735 },
+        { name: "Pharmacies UII Farma", lat: -7.68229, lng: 110.4189 },
+        { name: "Apotek Kadisobo", lat: -7.6644, lng: 110.36118 },
+        { name: "Apotek Indika", lat: -7.68521, lng: 110.3368 },
+        { name: "Apotek Pratama", lat: -7.67433, lng: 110.36839 },
+        { name: "Apotek K-24 Kotabaru", lat: -7.78593, lng: 110.3683 },
+        { name: "Apotek K-24 Satelit", lat: -7.78796, lng: 110.35325 },
+        { name: "Apotek Dharma Husada", lat: -7.7946, lng: 110.37402 },
+        { name: "Apotek Perdana Jogja", lat: -7.80276, lng: 110.36234 },
+        { name: "Apotek UMY", lat: -7.80259, lng: 110.34895 },
+      ];
+
+      locations.forEach((l) => {
+        L.marker([l.lat, l.lng], { icon: pharmacyIcon })
+          .bindPopup("<b>" + l.name + "</b>")
+          .bindTooltip(l.name)
+          .addTo(pharmacyLayer);
+      });
+
+      /* WARNA */
+      function getColor(k) {
+        return k === "Kota Yogyakarta"
+          ? "#191970"
+          : k === "Sleman"
+            ? "#1e88e5"
+            : k === "Bantul"
+              ? "#d2b48c"
+              : k === "Kulon Progo"
+                ? "#483d8b"
+                : k === "Gunungkidul"
+                  ? "#a52a2a"
+                  : "#ccc";
+      }
+
+      var wilayahLayer;
+
+      /* GEOJSON */
+      fetch("assets/jogja-wilayah.geojson")
+        .then((r) => r.json())
+        .then((d) => {
+          wilayahLayer = L.geoJSON(d, {
+            style: (f) => ({
+              fillColor: getColor(f.properties.kab_kota),
+              color: "#000",
+              weight: 1,
+              fillOpacity: 0.4,
+            }),
+            onEachFeature: (f, l) => {
+              l._kab = f.properties.kab_kota;
+              l.bindPopup("<b>" + l._kab + "</b>");
+            },
+          }).addTo(map);
+        });
+
+      /* INTERAKSI LEGENDA */
+      function zoomWilayah(kab) {
+        wilayahLayer.eachLayer((l) => {
+          if (l._kab === kab) {
+            map.fitBounds(l.getBounds());
+            l.setStyle({ fillOpacity: 0.7, weight: 3 });
+          } else {
+            l.setStyle({ fillOpacity: 0.15, weight: 1 });
+          }
+        });
+      }
+
+      function showAllPharmacy() {
+        map.fitBounds(pharmacyLayer.getBounds());
+        wilayahLayer.eachLayer((l) => {
+          l.setStyle({ fillOpacity: 0.4, weight: 1 });
+        });
+      }
+      function resetView() {
+        // balik ke posisi awal
+        map.setView(initialCenter, initialZoom);
+
+        // kembalikan style wilayah
+        wilayahLayer.eachLayer((l) => {
+          l.setStyle({
+            fillOpacity: 0.4,
+            weight: 1,
+          });
+        });
+      }
+    </script>
+  </body>
+</html>
